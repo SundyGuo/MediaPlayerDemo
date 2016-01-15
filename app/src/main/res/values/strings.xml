@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">SearchWordVideo</string>
+    <string name="action_settings">Settings</string>
+
+    <string name="service_permission">MediaPlayer Service Permission</string>
+</resources>
