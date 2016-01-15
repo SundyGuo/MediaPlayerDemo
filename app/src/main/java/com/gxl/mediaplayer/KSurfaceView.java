@@ -1,4 +1,4 @@
-package com.gxl.searchword;
+package com.gxl.mediaplayer;
 
 import android.content.Context;
 import android.graphics.Canvas;

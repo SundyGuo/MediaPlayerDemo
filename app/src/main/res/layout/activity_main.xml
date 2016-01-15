@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
-    tools:context="com.gxl.searchword.Main">
+    tools:context="com.gxl.mediaplayer.Main">
 
     <LinearLayout
         android:id="@+id/content_fragment"
