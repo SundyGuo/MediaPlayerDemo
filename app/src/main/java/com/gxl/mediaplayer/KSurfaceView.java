@@ -10,7 +10,7 @@ import android.view.SurfaceView;
 
 /**
  * Created by gxl on 2016/1/14.
- * Description: 重写SurfaceView
+ * Description: Override SurfaceView
  */
 public class KSurfaceView extends SurfaceView {
 
@@ -32,7 +32,7 @@ public class KSurfaceView extends SurfaceView {
     }
 
     /**
-     * 清空SurfaceView当前显示内容
+     * Clear SurfaceView current view
      */
     public void clearSurfaceView(){
         Canvas canvas = null;
