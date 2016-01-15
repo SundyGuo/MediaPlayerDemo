@@ -46,7 +46,7 @@ public class MediaPlayerFragment extends Fragment {
     private SeekBar mSeekBar;
     private TextView mVideoTime;
 
-    // 视频播放部分
+    // Video Play part
     private RelativeLayout mSurfaceViewLayout;
     private KSurfaceView mSurfaceView;
     private SurfaceHolder mSurfaceHolder;
