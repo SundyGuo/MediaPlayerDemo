@@ -1,11 +1,13 @@
 package com.gxl.mediaplayer;
 
-import android.media.AudioManager;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.media.MediaPlayer;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
-import android.support.v4.app.Fragment;
+import android.os.IBinder;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.SurfaceHolder;
@@ -18,15 +20,14 @@ import android.widget.RelativeLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
-import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
 /**
  * Created by gxl on 2016/1/15.
- * Description: Fragment used to show media palyer
+ * Description: Fragment used to show media player
  */
-public class MediaPlayerFragment extends Fragment {
+public class MediaPlayerFragment extends BaseFragment implements ServiceConnection {
 
     private static final String TAG = MediaPlayerFragment.class.getSimpleName();
     private static final String URL = "http://assets.baicizhan.com/word_tv/";
@@ -34,23 +35,37 @@ public class MediaPlayerFragment extends Fragment {
     // Main View
     private View mView;
 
+    /**
+     * Add mark to judge whether has voice or video
+     * 0: Default
+     * 1: Voice
+     * 2: Video
+     */
+    private int mVoiceAndVideoState = 2;
+
+    private BBCMediaPlayerService mBBCMediaPlayerService;
+
     // 记录重试状态值
     private boolean mTryAgain = false;
     private int mPlayPosition = -1;
 
-    // 输入框
+    // Input window
     private EditText mInputEditText;
-    // 查询按钮
+    // Search Button
     private Button mSearchWord;
-    // 进度条
+    // SeekBar and time show
     private SeekBar mSeekBar;
     private TextView mVideoTime;
+
+    // View Button
+    private Button mBBC1;
+    private Button mBBC2;
+    private Button mPlayPauseButton;
 
     // Video Play part
     private RelativeLayout mSurfaceViewLayout;
     private KSurfaceView mSurfaceView;
     private SurfaceHolder mSurfaceHolder;
-    private MediaPlayer mMediaPlayer;
 
     //UI
     private ProgressBar mProgressBar;
@@ -58,37 +73,51 @@ public class MediaPlayerFragment extends Fragment {
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        mView=inflater.inflate(R.layout.media_player_fragment, container, false);
+        mView = inflater.inflate(R.layout.media_player_fragment, container, false);
         init();
-        return  mView;
+        if (mVoiceAndVideoState == 1 || mVoiceAndVideoState == 2) {
+            startAndBindMediaService();
+        }
+        return mView;
     }
 
     /**
-     * 初始化
+     * Start Service and play media
+     */
+    private void startAndBindMediaService() {
+        mContext.startService(new Intent(mContext, BBCMediaPlayerService.class));
+        mContext.bindService(new Intent(mContext, BBCMediaPlayerService.class), this, Context.BIND_AUTO_CREATE);
+    }
+
+    /**
+     * Init
      */
     private void init() {
 
-        findViewById(R.id.bbc1).setOnClickListener(new View.OnClickListener() {
+        // View Click
+        mBBC1 = (Button) findViewById(R.id.bbc1);
+        mBBC1.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onClick(View view) {
-                onViewBBCClick(view);
+            public void onClick(View v) {
+                onViewBBCClick(v);
+            }
+        });
+        mBBC2 = (Button) findViewById(R.id.bbc2);
+        mBBC2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                onViewBBCClick(v);
+            }
+        });
+        mPlayPauseButton = (Button) findViewById(R.id.play_pause);
+        mPlayPauseButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                onViewPauseClick(v);
             }
         });
 
-        findViewById(R.id.bbc2).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                onViewBBCClick(view);
-            }
-        });
-
-        findViewById(R.id.play_pause).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                onViewPauseClick(view);
-            }
-        });
-        // UI部分初始化
+        // UI
         mInputEditText = (EditText) findViewById(R.id.input_word);
         mSearchWord = (Button) findViewById(R.id.search);
         mProgressBar = (ProgressBar) findViewById(R.id.progressBar);
@@ -107,13 +136,10 @@ public class MediaPlayerFragment extends Fragment {
                 playMedia(URL + "leng_" + mInputEditText.getText().toString().trim() + ".mp4");
             }
         });
-
-        // 视频播放部分初始化
-        mMediaPlayer = new MediaPlayer();
         // 设置surfaceHolder
         mSurfaceHolder = mSurfaceView.getHolder();
         // 设置Holder类型,该类型表示surfaceView自己不管理缓存区,虽然提示过时，但最好还是要设置
-//        mSurfaceHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+        mSurfaceHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
         // 设置surface回调
         mSurfaceHolder.addCallback(new SurfaceHolder.Callback() {
             @Override
@@ -129,9 +155,8 @@ public class MediaPlayerFragment extends Fragment {
             @Override
             public void surfaceDestroyed(SurfaceHolder surfaceHolder) {
                 // surfaceView销毁,同时销毁mediaPlayer
-                if (null != mMediaPlayer) {
-                    mMediaPlayer.release();
-                    mMediaPlayer = null;
+                if (mBBCMediaPlayerService != null) {
+                    mBBCMediaPlayerService.releaseResource();
                 }
             }
         });
@@ -140,11 +165,14 @@ public class MediaPlayerFragment extends Fragment {
         mSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
-                if(b) {
-                    if(mMediaPlayer != null) {
-                        mVideoTime.setText(getTime(i) + "/" + getTime(mMediaPlayer.getDuration()));
-                        mMediaPlayer.start();
-                        mMediaPlayer.seekTo(i);
+                if (b) {
+                    if (mBBCMediaPlayerService != null) {
+                        if (mBBCMediaPlayerService.getMediaPlayer() != null) {
+                            mVideoTime.setText(getTime(i) + "/" + getTime(mBBCMediaPlayerService.getDuration()));
+                            mBBCMediaPlayerService.getMediaPlayer().start();
+                            mBBCMediaPlayerService.getMediaPlayer().seekTo(i);
+                        }
+
                     }
                 }
             }
@@ -165,31 +193,31 @@ public class MediaPlayerFragment extends Fragment {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                while(true) {
+                while (true) {
                     try {
-                        Log.e(TAG,"thread update playing time" + " *** current time is " + System.currentTimeMillis()/1000);
-                        if(mMediaPlayer != null && mMediaPlayer.isPlaying()) {
-                            mSeekBar.setProgress(mMediaPlayer.getCurrentPosition());
+                        Log.e(TAG, "thread update playing time" + " *** current time is " + System.currentTimeMillis() / 1000);
+                        if (mBBCMediaPlayerService.getMediaPlayer() != null && mBBCMediaPlayerService.getMediaPlayer().isPlaying()) {
+                            mSeekBar.setProgress(mBBCMediaPlayerService.getCurrentPosition());
                             mHandler.post(new Runnable() {
                                 @Override
                                 public void run() {
-                                    mVideoTime.setText(getTime(mMediaPlayer.getCurrentPosition()) + "/" + getTime(mMediaPlayer.getDuration()));
+                                    mVideoTime.setText(getTime(mBBCMediaPlayerService.getCurrentPosition()) + "/" + getTime(mBBCMediaPlayerService.getDuration()));
                                 }
                             });
                             try {
                                 Thread.sleep(1000);
                             } catch (InterruptedException e) {
-                                Log.e(TAG,"Thread Sleep 1000 ",e);
+                                Log.e(TAG, "Thread Sleep 1000 ", e);
                             }
                         } else {
                             try {
                                 Thread.sleep(2000);
                             } catch (InterruptedException e) {
-                                Log.e(TAG,"Thread Sleep 2000 ",e);
+                                Log.e(TAG, "Thread Sleep 2000 ", e);
                             }
                         }
                     } catch (Exception e) {
-                        Log.e(TAG,"Update play time",e);
+                        Log.e(TAG, "Update play time", e);
                     }
 
                 }
@@ -199,145 +227,119 @@ public class MediaPlayerFragment extends Fragment {
 
     /**
      * View BBC click
+     *
      * @param view
      */
-    private void onViewBBCClick(View view){
+    private void onViewBBCClick(View view) {
         mTryAgain = false;
-        String text = ((Button)view).getText().toString().trim();
-        if(text.endsWith("1")) {
+        String text = ((Button) view).getText().toString().trim();
+        if (text.endsWith("1")) {
             playMedia("http://cdn.iciba.com/news/bbc/video/bbc_lingohack_solar_power_female_commander_hospital_demolished.mp4");
-        } else if(text.endsWith("2")) {
+        } else if (text.endsWith("2")) {
             playMedia("http://cdn.iciba.com/news/bbc/video/bbc_lingohack_syria_iraq_facebook.mp4");
         }
     }
 
     /**
      * View Play Pause click
+     *
      * @param view
      */
-    private void onViewPauseClick(View view){
-        if(mMediaPlayer == null) {
-            return;
-        }
-        // 正在播放
-        if (mMediaPlayer.isPlaying()) {
-            mPlayPosition = mMediaPlayer.getCurrentPosition();
-            // seekBarAutoFlag = false;
-            mMediaPlayer.pause();
-            ((Button)view).setText("播放");
-        } else {
-            if (mPlayPosition>= 0) {
-                // seekBarAutoFlag = true;
-//                mMediaPlayer.seekTo(mPlayPosition);
-                mMediaPlayer.start();
-                ((Button)view).setText("暂停");
-                mPlayPosition = -1;
+    private void onViewPauseClick(View view) {
+        if (mBBCMediaPlayerService != null) {
+            if (mBBCMediaPlayerService.getMediaPlayer() == null) {
+                return;
+            }
+            // 正在播放
+            if (mBBCMediaPlayerService.getMediaPlayer().isPlaying()) {
+                mPlayPosition = mBBCMediaPlayerService.getCurrentPosition();
+                mBBCMediaPlayerService.getMediaPlayer().pause();
+                ((Button) view).setText("播放");
+            } else {
+                if (mPlayPosition >= 0) {
+                    mBBCMediaPlayerService.getMediaPlayer().start();
+                    ((Button) view).setText("暂停");
+                    mPlayPosition = -1;
+                }
             }
         }
     }
 
     /**
-     * 播放音频
+     * Play video or voice
+     *
      * @wordPath
      */
     private void playMedia(final String wordPath) {
-        mProgressBar.setVisibility(View.VISIBLE);
-        mPlayPosition = -1;
-        if(mMediaPlayer == null) {
-            // 初始化MediaPlayer
-            mMediaPlayer = new MediaPlayer();
-        } else {
-            if(mMediaPlayer.isPlaying()) {
-                mMediaPlayer.stop();
-            }
-        }
-        // 还原进度条
-        mSeekBar.setProgress(0);
-        mSeekBar.setSecondaryProgress(0);
-        mVideoTime.setText(getTime(0) + "/" + getTime(0));
-        mMediaPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
-            @Override
-            public void onPrepared(MediaPlayer mediaPlayer) {
-                mProgressBar.setVisibility(View.GONE);
-                mMediaPlayer.start();
-                // 设置显示到屏幕
-                mMediaPlayer.setDisplay(mSurfaceHolder);
-                mSeekBar.setMax(mMediaPlayer.getDuration());
-                mVideoTime.setText(getTime(0) + "/" + getTime(mMediaPlayer.getDuration()));
-                int screenWidth = mSurfaceViewLayout.getWidth();
-                int screenHeight = screenWidth * mMediaPlayer.getVideoHeight()/mMediaPlayer.getVideoWidth();
-                RelativeLayout.LayoutParams layoutParams = new RelativeLayout.LayoutParams(screenWidth,
-                        screenHeight);
-                layoutParams.topMargin = 480;
-                mSurfaceViewLayout.setLayoutParams(layoutParams);
-            }
-        });
-        mMediaPlayer.setOnBufferingUpdateListener(new MediaPlayer.OnBufferingUpdateListener() {
-            @Override
-            public void onBufferingUpdate(MediaPlayer mediaPlayer, int i) {
-                Log.e(TAG,"onBuffering i is " + i + " max is " + mSeekBar.getMax());
-                if(mSeekBar.getMax()>0) {
-                    mSeekBar.setSecondaryProgress(i*mSeekBar.getMax()/100);
-                }
-            }
-        });
-        mMediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-            @Override
-            public void onCompletion(MediaPlayer mediaPlayer) {
-                Log.e(TAG,"Video play complete");
-            }
-        });
-
-        mMediaPlayer.setOnErrorListener(new MediaPlayer.OnErrorListener() {
-            @Override
-            public boolean onError(MediaPlayer mediaPlayer, int i, int i1) {
-                if(!mTryAgain) {
-                    playMedia(wordPath.replace("leng_","real_"));
-                    mTryAgain = true;
-                }
-                return false;
-            }
-        });
-        mMediaPlayer.setOnInfoListener(new MediaPlayer.OnInfoListener() {
-            @Override
-            public boolean onInfo(MediaPlayer mediaPlayer, int what, int i1) {
-                if(what == MediaPlayer.MEDIA_INFO_BUFFERING_START) {
-                    mProgressBar.setVisibility(View.VISIBLE);
-                } else if (what == MediaPlayer.MEDIA_INFO_BUFFERING_END) {
+        if (mBBCMediaPlayerService != null) {
+            mProgressBar.setVisibility(View.VISIBLE);
+            mPlayPosition = -1;
+            // 还原进度条
+            mSeekBar.setProgress(0);
+            mSeekBar.setSecondaryProgress(0);
+            mVideoTime.setText(getTime(0) + "/" + getTime(0));
+            mBBCMediaPlayerService.addMediaPlayerListener(new MediaPlayer.OnPreparedListener() {
+                @Override
+                public void onPrepared(MediaPlayer mediaPlayer) {
                     mProgressBar.setVisibility(View.GONE);
+                    mediaPlayer.start();
+                    // 设置显示到屏幕
+                    mediaPlayer.setDisplay(mSurfaceHolder);
+                    mSeekBar.setMax(mediaPlayer.getDuration());
+                    mVideoTime.setText(getTime(0) + "/" + getTime(mediaPlayer.getDuration()));
+                    int screenWidth = mSurfaceViewLayout.getWidth();
+                    int screenHeight = screenWidth * mediaPlayer.getVideoHeight() / mediaPlayer.getVideoWidth();
+                    RelativeLayout.LayoutParams layoutParams = new RelativeLayout.LayoutParams(screenWidth,
+                            screenHeight);
+                    layoutParams.topMargin = 480;
+                    mSurfaceViewLayout.setLayoutParams(layoutParams);
                 }
-                return false;
-            }
-        });
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                Uri uri = Uri.parse(wordPath);
-                try {
-                    mMediaPlayer.reset();
-                    mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-                    mMediaPlayer.setDataSource(getActivity(),uri);
-                    mMediaPlayer.prepareAsync();
-                } catch (IOException e) {
-                    e.printStackTrace();
+            }, new MediaPlayer.OnBufferingUpdateListener() {
+                @Override
+                public void onBufferingUpdate(MediaPlayer mp, int percent) {
+                    Log.e(TAG, "onBuffering i is " + percent + " max is " + mSeekBar.getMax());
+                    if (mSeekBar.getMax() > 0) {
+                        mSeekBar.setSecondaryProgress(percent * mSeekBar.getMax() / 100);
+                    }
                 }
-            }
-        }).start();
-
+            }, new MediaPlayer.OnInfoListener() {
+                @Override
+                public boolean onInfo(MediaPlayer mp, int what, int extra) {
+                    if (what == MediaPlayer.MEDIA_INFO_BUFFERING_START) {
+                        mProgressBar.setVisibility(View.VISIBLE);
+                    } else if (what == MediaPlayer.MEDIA_INFO_BUFFERING_END) {
+                        mProgressBar.setVisibility(View.GONE);
+                    }
+                    return false;
+                }
+            }, new MediaPlayer.OnErrorListener() {
+                @Override
+                public boolean onError(MediaPlayer mp, int what, int extra) {
+                    if (!mTryAgain) {
+                        playMedia(wordPath.replace("leng_", "real_"));
+                        mTryAgain = true;
+                    }
+                    return false;
+                }
+            });
+            mBBCMediaPlayerService.startPlayMedia(wordPath);
+        }
     }
 
     SimpleDateFormat simpleDateFormat;
     Date date;
+
     /**
-     * 通过 int 值获取对应时间值
+     * Change time from int to format string
+     *
      * @param time
      * @return
      */
-    private String getTime(int time){
-        if(simpleDateFormat == null) {
+    private String getTime(int time) {
+        if (simpleDateFormat == null) {
             simpleDateFormat = new SimpleDateFormat("mm:ss");
         }
-        if(date == null){
+        if (date == null) {
             date = new Date(time);
         } else {
             date.setTime(time);
@@ -346,15 +348,28 @@ public class MediaPlayerFragment extends Fragment {
     }
 
     /**
-     * Override findViewById
+     * Override findViewById add default parent view
+     *
      * @param id
      * @return
      */
-    private View findViewById(int id){
-        if(mView != null) {
+    private View findViewById(int id) {
+        if (mView != null) {
             return mView.findViewById(id);
         }
         return null;
 
+    }
+
+    @Override
+    public void onServiceConnected(ComponentName name, IBinder service) {
+        mBBCMediaPlayerService = ((BBCMediaPlayerService.LocalBinder) service)
+                .getService();
+        mBBCMediaPlayerService.setSurfaceHolder(mSurfaceHolder);
+    }
+
+    @Override
+    public void onServiceDisconnected(ComponentName name) {
+        mBBCMediaPlayerService = null;
     }
 }
