@@ -196,7 +196,7 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
                 while (true) {
                     try {
                         Log.e(TAG, "thread update playing time" + " *** current time is " + System.currentTimeMillis() / 1000);
-                        if (mBBCMediaPlayerService.getMediaPlayer() != null && mBBCMediaPlayerService.getMediaPlayer().isPlaying()) {
+                        if (mBBCMediaPlayerService != null && mBBCMediaPlayerService.getMediaPlayer() != null && mBBCMediaPlayerService.getMediaPlayer().isPlaying()) {
                             mSeekBar.setProgress(mBBCMediaPlayerService.getCurrentPosition());
                             mHandler.post(new Runnable() {
                                 @Override
@@ -365,11 +365,22 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
     public void onServiceConnected(ComponentName name, IBinder service) {
         mBBCMediaPlayerService = ((BBCMediaPlayerService.LocalBinder) service)
                 .getService();
-        mBBCMediaPlayerService.setSurfaceHolder(mSurfaceHolder);
+        if(mSurfaceHolder != null) {
+            mBBCMediaPlayerService.setSurfaceHolder(mSurfaceHolder);
+        }
     }
 
     @Override
     public void onServiceDisconnected(ComponentName name) {
         mBBCMediaPlayerService = null;
+    }
+
+    @Override
+    public void onDestroy() {
+        if(mBBCMediaPlayerService != null) {
+            mBBCMediaPlayerService.releaseResource();
+        }
+        mContext.unbindService(this);
+        super.onDestroy();
     }
 }

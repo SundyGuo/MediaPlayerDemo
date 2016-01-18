@@ -67,7 +67,9 @@ public class BBCMediaPlayerService extends Service{
         if(mMediaPlayer == null) {
             mMediaPlayer = new MediaPlayer();
         }
-        mMediaPlayer.setDisplay(surfaceHolder);
+        if(surfaceHolder != null) {
+            mMediaPlayer.setDisplay(surfaceHolder);
+        }
     }
 
     /**
@@ -75,6 +77,10 @@ public class BBCMediaPlayerService extends Service{
      */
     public void releaseResource() {
         if(mMediaPlayer != null) {
+            if(mMediaPlayer.isPlaying()) {
+                mMediaPlayer.pause();
+                mMediaPlayer.stop();
+            }
             mMediaPlayer.release();
             mMediaPlayer = null;
         }
