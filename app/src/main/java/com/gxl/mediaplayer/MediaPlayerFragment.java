@@ -1,5 +1,6 @@
 package com.gxl.mediaplayer;
 
+import android.animation.ObjectAnimator;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -33,6 +34,7 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
     private static final String URL = "http://assets.baicizhan.com/word_tv/";
 
     // Main View
+
     private View mView;
 
     /**
@@ -45,9 +47,14 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
 
     private BBCMediaPlayerService mBBCMediaPlayerService;
 
-    // 记录重试状态值
+    // Mark Retry state
     private boolean mTryAgain = false;
     private int mPlayPosition = -1;
+
+    // Mark preparing state
+    private boolean mIsPreparing = false;
+    // Mark prepared state
+    private boolean mIsPrepared = false;
 
     // Input window
     private EditText mInputEditText;
@@ -56,6 +63,13 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
     // SeekBar and time show
     private SeekBar mSeekBar;
     private TextView mVideoTime;
+    private View mVideoControlView;
+
+    private static final int FLOOT_DURATION = 300;
+
+    // Animator to show and hide video control view
+    private ObjectAnimator mVideoAnimator = null;
+
 
     // View Button
     private Button mBBC1;
@@ -126,7 +140,15 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
         mSurfaceView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                onViewPauseClick(findViewById(R.id.play_pause));
+                if(mIsPrepared) {
+                    mHandler.removeCallbacks(runnable);
+                    if(mVideoControlView.getTranslationY() == 0) {
+                        changeVideoControlState(false);
+                    } else{
+                        changeVideoControlState(true);
+                        mHandler.postDelayed(runnable,3000);
+                    }
+                }
             }
         });
         mSearchWord.setOnClickListener(new View.OnClickListener() {
@@ -144,7 +166,13 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
         mSurfaceHolder.addCallback(new SurfaceHolder.Callback() {
             @Override
             public void surfaceCreated(SurfaceHolder surfaceHolder) {
+                if(mVoiceAndVideoState == 2) {
+                    if (mBBCMediaPlayerService != null) {
+                        mBBCMediaPlayerService.setSurfaceHolder(surfaceHolder);
+                    }
+                } else if (mVoiceAndVideoState == 1) {
 
+                }
             }
 
             @Override
@@ -161,11 +189,21 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
             }
         });
 
+        mVideoControlView = findViewById(R.id.video_control_layout);
+        mVideoControlView.setVisibility(View.INVISIBLE);
         mSeekBar = (SeekBar) findViewById(R.id.seek_bar);
         mSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
                 if (b) {
+                    if(mIsPreparing) {
+                        SToast.show(mContext,"Video is loading, please wait...");
+                        return;
+                    }
+                    if(!mIsPrepared) {
+                        SToast.show(mContext,"Video is not prepared, please wait...");
+                        return;
+                    }
                     if (mBBCMediaPlayerService != null) {
                         if (mBBCMediaPlayerService.getMediaPlayer() != null) {
                             mVideoTime.setText(getTime(i) + "/" + getTime(mBBCMediaPlayerService.getDuration()));
@@ -189,7 +227,6 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
         });
 
         mVideoTime = (TextView) findViewById(R.id.video_time);
-
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -246,6 +283,14 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
      * @param view
      */
     private void onViewPauseClick(View view) {
+        if(mIsPreparing) {
+            SToast.show(mContext,"Video is loading, please wait...");
+            return;
+        }
+        if(!mIsPrepared) {
+            SToast.show(mContext,"Video is not prepared, please wait...");
+            return;
+        }
         if (mBBCMediaPlayerService != null) {
             if (mBBCMediaPlayerService.getMediaPlayer() == null) {
                 return;
@@ -272,6 +317,8 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
      */
     private void playMedia(final String wordPath) {
         if (mBBCMediaPlayerService != null) {
+            mIsPrepared = false;
+            mIsPreparing = true;
             mProgressBar.setVisibility(View.VISIBLE);
             mPlayPosition = -1;
             // 还原进度条
@@ -281,6 +328,10 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
             mBBCMediaPlayerService.addMediaPlayerListener(new MediaPlayer.OnPreparedListener() {
                 @Override
                 public void onPrepared(MediaPlayer mediaPlayer) {
+                    mVideoControlView.setVisibility(View.VISIBLE);
+                    mVideoControlView.setTranslationY(mVideoControlView.getHeight());
+                    mIsPreparing = false;
+                    mIsPrepared = true;
                     mProgressBar.setVisibility(View.GONE);
                     mediaPlayer.start();
                     // 设置显示到屏幕
@@ -365,9 +416,6 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
     public void onServiceConnected(ComponentName name, IBinder service) {
         mBBCMediaPlayerService = ((BBCMediaPlayerService.LocalBinder) service)
                 .getService();
-        if(mSurfaceHolder != null) {
-            mBBCMediaPlayerService.setSurfaceHolder(mSurfaceHolder);
-        }
     }
 
     @Override
@@ -383,4 +431,32 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
         mContext.unbindService(this);
         super.onDestroy();
     }
+
+    /**
+     * Change Video control view state
+     * @param state true: show false: hide
+     */
+    private void changeVideoControlState(boolean state){
+        if (mVideoAnimator != null && mVideoAnimator.isRunning()) {
+            mVideoAnimator.cancel();
+        }
+        if(state) {
+            mVideoAnimator = ObjectAnimator.ofFloat(mVideoControlView, "translationY", 0);
+            mVideoAnimator.setDuration(FLOOT_DURATION * Math.abs(-(int) mVideoControlView.getTranslationY()) / mVideoControlView.getHeight());
+        } else {
+            mVideoAnimator = ObjectAnimator.ofFloat(mVideoControlView, "translationY", mVideoControlView.getHeight());
+            mVideoAnimator.setDuration(FLOOT_DURATION * Math.abs(mVideoControlView.getHeight() -(int) mVideoControlView.getTranslationY()) / mVideoControlView.getHeight());
+        }
+        mVideoAnimator.start();
+    }
+
+    /**
+     * Hide video control view
+     */
+    Runnable runnable = new Runnable() {
+        @Override
+        public void run() {
+            changeVideoControlState(false);
+        }
+    };
 }

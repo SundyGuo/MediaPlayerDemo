@@ -82,38 +82,35 @@
             android:layout_height="wrap_content"
             android:layout_centerInParent="true"/>
 
-        <LinearLayout
+        <RelativeLayout
+            android:id="@+id/video_control_layout"
             android:layout_width="match_parent"
-            android:layout_height="30dp"
+            android:layout_height="wrap_content"
+            android:paddingLeft="5dp"
+            android:paddingRight="5dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
             android:layout_alignParentBottom="true"
-            android:background="@android:color/transparent">
+            android:background="#7E000000">
 
-        </LinearLayout>
+            <TextView
+                android:id="@+id/video_time"
+                android:layout_width="80dp"
+                android:layout_height="wrap_content"
+                android:text="00:00/00:00"
+                android:layout_alignParentRight="true"
+                android:layout_centerVertical="true"/>
 
-    </RelativeLayout>
+            <SeekBar
+                android:id="@+id/seek_bar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_toLeftOf="@id/video_time"
+                android:layout_marginRight="10dp"
+                android:layout_alignParentLeft="true"/>
 
+        </RelativeLayout>
 
-    <RelativeLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:layout_below="@id/surface_view_layout">
-        
-        <TextView
-            android:id="@+id/video_time"
-            android:layout_width="80dp"
-            android:layout_height="wrap_content"
-            android:text="00:00/00:00"
-            android:layout_alignParentRight="true"
-            android:layout_centerVertical="true"/>
-
-        <SeekBar
-            android:id="@+id/seek_bar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_toLeftOf="@id/video_time"
-            android:layout_alignParentLeft="true"/>
-        
     </RelativeLayout>
 
 </RelativeLayout>
