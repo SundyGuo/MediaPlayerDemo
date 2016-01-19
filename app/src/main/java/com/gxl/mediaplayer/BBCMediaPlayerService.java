@@ -21,7 +21,7 @@ public class BBCMediaPlayerService extends Service{
     private static final String TAG = BBCMediaPlayerService.class.getSimpleName();
 
     // MediaPlayer to play online video
-    protected MediaPlayer mMediaPlayer = null;
+    protected SMediaPlayer mMediaPlayer = null;
 
     // Local IBinder
     private final IBinder mBinder = new LocalBinder();
@@ -46,7 +46,7 @@ public class BBCMediaPlayerService extends Service{
      */
     public void startPlayMedia(String mediaPath){
         if(mMediaPlayer == null) {
-            mMediaPlayer = new MediaPlayer();
+            mMediaPlayer = new SMediaPlayer();
         } else {
             mMediaPlayer.stop();
         }
@@ -67,7 +67,7 @@ public class BBCMediaPlayerService extends Service{
      */
     public void setSurfaceHolder(SurfaceHolder surfaceHolder) {
         if(mMediaPlayer == null) {
-            mMediaPlayer = new MediaPlayer();
+            mMediaPlayer = new SMediaPlayer();
         }
         if(surfaceHolder != null) {
             mMediaPlayer.setDisplay(surfaceHolder);
@@ -92,7 +92,7 @@ public class BBCMediaPlayerService extends Service{
      * get service media player
      * @return
      */
-    public MediaPlayer getMediaPlayer() {
+    public SMediaPlayer getMediaPlayer() {
         return mMediaPlayer;
     }
 
@@ -129,10 +129,10 @@ public class BBCMediaPlayerService extends Service{
      * @param onInfoListener
      * @param onErrorListener
      */
-    public void addMediaPlayerListener(MediaPlayer.OnPreparedListener onPreparedListener, MediaPlayer.OnBufferingUpdateListener onBufferingUpdateListener,
-                                       MediaPlayer.OnInfoListener onInfoListener, MediaPlayer.OnErrorListener onErrorListener) {
+    public void addMediaPlayerListener(SMediaPlayer.OnPreparedListener onPreparedListener, SMediaPlayer.OnBufferingUpdateListener onBufferingUpdateListener,
+                                       SMediaPlayer.OnInfoListener onInfoListener, SMediaPlayer.OnErrorListener onErrorListener) {
         if (mMediaPlayer == null) {
-            mMediaPlayer = new MediaPlayer();
+            mMediaPlayer = new SMediaPlayer();
         }
         if (onPreparedListener != null) {
             mMediaPlayer.setOnPreparedListener(onPreparedListener);
@@ -146,6 +146,20 @@ public class BBCMediaPlayerService extends Service{
         }
         if(onErrorListener != null) {
             mMediaPlayer.setOnErrorListener(onErrorListener);
+        }
+    }
+
+    /**
+     *
+     * @param onSeekCompleteListener
+     */
+    public void addMediaPlayerSeekListener(MediaPlayer.OnSeekCompleteListener onSeekCompleteListener){
+        if (mMediaPlayer == null) {
+            mMediaPlayer = new SMediaPlayer();
+        }
+        if (onSeekCompleteListener != null) {
+            mMediaPlayer.setOnSeekCompleteListener(onSeekCompleteListener);
+
         }
     }
 }

@@ -64,6 +64,8 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
     private boolean mIsDestroy = false;
     // Mark last video path
     private static String mLastVideoPath = null;
+    // Mark Seek State
+    private boolean mIsSeeking = false;
 
     // Input window
     private EditText mInputEditText;
@@ -215,37 +217,37 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
         mSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
-                if (b) {
-                    if(mIsPreparing) {
-                        SToast.show(mContext,"Video is loading, please wait...");
-                        return;
-                    }
-                    if(!mIsPrepared) {
-                        SToast.show(mContext,"Video is not prepared, please wait...");
-                        return;
-                    }
-                    if (mBBCMediaPlayerService != null) {
-                        if (mBBCMediaPlayerService.getMediaPlayer() != null) {
-                            mVideoTime.setText(getTime(i) + "/" + getTime(mBBCMediaPlayerService.getDuration()));
-                            mBBCMediaPlayerService.getMediaPlayer().start();
-                            mBBCMediaPlayerService.getMediaPlayer().seekTo(i);
-                            if(i > mSeekBar.getSecondaryProgress()) {
-                                mProgressBar.setVisibility(View.VISIBLE);
-                            }
-                        }
-                    }
-                }
+
             }
 
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
                 mHandler.removeCallbacks(runnable);
-
             }
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
+                if(mIsPreparing) {
+                    SToast.show(mContext,"Video is loading, please wait...");
+                    return;
+                }
+                if(!mIsPrepared) {
+                    SToast.show(mContext,"Video is not prepared, please wait...");
+                    return;
+                }
+                int i = seekBar.getProgress();
                 mHandler.postDelayed(runnable,3000);
+                if (mBBCMediaPlayerService != null) {
+                    if (mBBCMediaPlayerService.getMediaPlayer() != null) {
+                        mIsSeeking = true;
+                        mVideoTime.setText(getTime(i) + "/" + getTime(mBBCMediaPlayerService.getDuration()));
+                        mBBCMediaPlayerService.getMediaPlayer().start();
+                        mBBCMediaPlayerService.getMediaPlayer().seekTo(i);
+                        if(i > mSeekBar.getSecondaryProgress()) {
+                            mProgressBar.setVisibility(View.VISIBLE);
+                        }
+                    }
+                }
             }
         });
 
@@ -255,8 +257,17 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
             public void run() {
                 while (true) {
                     try {
-                        Log.e(TAG, "thread update playing time" + " *** current time is " + System.currentTimeMillis() / 1000);
-                        if (mBBCMediaPlayerService != null && mBBCMediaPlayerService.getMediaPlayer() != null && mBBCMediaPlayerService.getMediaPlayer().isPlaying()) {
+                        if (!mIsSeeking &&mBBCMediaPlayerService != null && mBBCMediaPlayerService.getMediaPlayer() != null && mBBCMediaPlayerService.getMediaPlayer().isPlaying()) {
+                            if(mSeekBar.getProgress() < mBBCMediaPlayerService.getCurrentPosition()) {
+                                if(mProgressBar.getVisibility() == View.VISIBLE) {
+                                    mHandler.post(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            mProgressBar.setVisibility(View.INVISIBLE);
+                                        }
+                                    });
+                                }
+                            }
                             mSeekBar.setProgress(mBBCMediaPlayerService.getCurrentPosition());
                             mHandler.post(new Runnable() {
                                 @Override
@@ -377,7 +388,6 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
             }, new MediaPlayer.OnBufferingUpdateListener() {
                 @Override
                 public void onBufferingUpdate(MediaPlayer mp, int percent) {
-                    Log.e(TAG, "onBuffering i is " + percent + " max is " + mSeekBar.getMax());
                     if (mSeekBar.getMax() > 0) {
                         mSeekBar.setSecondaryProgress(percent * mSeekBar.getMax() / 100);
                     }
@@ -407,6 +417,12 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
                         mTryAgain = true;
                     }
                     return false;
+                }
+            });
+            mBBCMediaPlayerService.addMediaPlayerSeekListener(new MediaPlayer.OnSeekCompleteListener() {
+                @Override
+                public void onSeekComplete(MediaPlayer mp) {
+                    mIsSeeking = false;
                 }
             });
             mBBCMediaPlayerService.startPlayMedia(wordPath);
