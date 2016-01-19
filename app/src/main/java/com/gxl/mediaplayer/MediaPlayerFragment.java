@@ -140,6 +140,9 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
         mSurfaceView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                if(mProgressBar.getVisibility() == View.VISIBLE) {
+                    return;
+                }
                 if(mIsPrepared) {
                     mHandler.removeCallbacks(runnable);
                     if(mVideoControlView.getTranslationY() == 0) {
@@ -209,6 +212,9 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
                             mVideoTime.setText(getTime(i) + "/" + getTime(mBBCMediaPlayerService.getDuration()));
                             mBBCMediaPlayerService.getMediaPlayer().start();
                             mBBCMediaPlayerService.getMediaPlayer().seekTo(i);
+                            if(i > mSeekBar.getSecondaryProgress()) {
+                                mProgressBar.setVisibility(View.VISIBLE);
+                            }
                         }
 
                     }

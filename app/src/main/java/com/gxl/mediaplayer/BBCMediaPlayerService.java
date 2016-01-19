@@ -47,6 +47,8 @@ public class BBCMediaPlayerService extends Service{
     public void startPlayMedia(String mediaPath){
         if(mMediaPlayer == null) {
             mMediaPlayer = new MediaPlayer();
+        } else {
+            mMediaPlayer.stop();
         }
         Uri uri = Uri.parse(mediaPath);
         try {
