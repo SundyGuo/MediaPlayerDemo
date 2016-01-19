@@ -49,12 +49,14 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
 
     // Mark Retry state
     private boolean mTryAgain = false;
-    private int mPlayPosition = -1;
+    private static int mPlayPosition = -1;
 
     // Mark preparing state
     private boolean mIsPreparing = false;
     // Mark prepared state
     private boolean mIsPrepared = false;
+    // Paused state
+    private boolean mIsPaused = false;
 
     // Input window
     private EditText mInputEditText;
@@ -173,8 +175,11 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
                     if (mBBCMediaPlayerService != null) {
                         mBBCMediaPlayerService.setSurfaceHolder(surfaceHolder);
                     }
-                } else if (mVoiceAndVideoState == 1) {
-
+                }
+                if(mIsPaused) {
+                    mIsPaused = false;
+                    mBBCMediaPlayerService.getMediaPlayer().start();
+                    mPlayPauseButton.setText("暂停");
                 }
             }
 
@@ -187,7 +192,7 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
             public void surfaceDestroyed(SurfaceHolder surfaceHolder) {
                 // surfaceView销毁,同时销毁mediaPlayer
                 if (mBBCMediaPlayerService != null) {
-                    mBBCMediaPlayerService.releaseResource();
+//                    mBBCMediaPlayerService.releaseResource();
                 }
             }
         });
@@ -427,6 +432,21 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
     @Override
     public void onServiceDisconnected(ComponentName name) {
         mBBCMediaPlayerService = null;
+    }
+
+    @Override
+    public void onPause() {
+        if (mBBCMediaPlayerService != null) {
+            if (mBBCMediaPlayerService.getMediaPlayer() != null) {
+                if(mBBCMediaPlayerService.getMediaPlayer().isPlaying()) {
+                    mPlayPosition = mBBCMediaPlayerService.getCurrentPosition();
+                    mBBCMediaPlayerService.getMediaPlayer().pause();
+                    mPlayPauseButton.setText("播放");
+                    mIsPaused = true;
+                }
+            }
+        }
+        super.onPause();
     }
 
     @Override
