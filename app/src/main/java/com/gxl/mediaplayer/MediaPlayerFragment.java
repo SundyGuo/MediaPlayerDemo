@@ -9,6 +9,7 @@ import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.SurfaceHolder;
@@ -57,6 +58,12 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
     private boolean mIsPrepared = false;
     // Paused state
     private boolean mIsPaused = false;
+    // Pause when preparing
+    private boolean mPreparingPause = false;
+    // Destroy state
+    private boolean mIsDestroy = false;
+    // Mark last video path
+    private static String mLastVideoPath = null;
 
     // Input window
     private EditText mInputEditText;
@@ -181,6 +188,13 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
                     mBBCMediaPlayerService.getMediaPlayer().start();
                     mPlayPauseButton.setText("暂停");
                 }
+                mIsDestroy = false;
+                if(mPreparingPause && !TextUtils.isEmpty(mLastVideoPath)) {
+                    if(!mIsPreparing && mIsPrepared) {
+                        playMedia(mLastVideoPath);
+                    }
+                }
+                mPreparingPause = false;
             }
 
             @Override
@@ -191,9 +205,7 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
             @Override
             public void surfaceDestroyed(SurfaceHolder surfaceHolder) {
                 // surfaceView销毁,同时销毁mediaPlayer
-                if (mBBCMediaPlayerService != null) {
-//                    mBBCMediaPlayerService.releaseResource();
-                }
+                mIsDestroy = true;
             }
         });
 
@@ -221,19 +233,19 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
                                 mProgressBar.setVisibility(View.VISIBLE);
                             }
                         }
-
                     }
                 }
             }
 
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
+                mHandler.removeCallbacks(runnable);
 
             }
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-
+                mHandler.postDelayed(runnable,3000);
             }
         });
 
@@ -327,6 +339,7 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
      * @wordPath
      */
     private void playMedia(final String wordPath) {
+        mLastVideoPath = wordPath;
         if (mBBCMediaPlayerService != null) {
             mIsPrepared = false;
             mIsPreparing = true;
@@ -339,21 +352,26 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
             mBBCMediaPlayerService.addMediaPlayerListener(new MediaPlayer.OnPreparedListener() {
                 @Override
                 public void onPrepared(MediaPlayer mediaPlayer) {
+                    if(mediaPlayer.getVideoHeight() == 0 || mediaPlayer.getVideoWidth() == 0) {
+                        SToast.show(mContext,"Video is not normal");
+                        return;
+                    }
+                    mIsPrepared = true;
+                    mIsPreparing = false;
+                    if(mIsDestroy) {
+                        return;
+                    }
                     mVideoControlView.setVisibility(View.VISIBLE);
                     mVideoControlView.setTranslationY(mVideoControlView.getHeight());
-                    mIsPreparing = false;
-                    mIsPrepared = true;
                     mProgressBar.setVisibility(View.GONE);
                     mediaPlayer.start();
                     // 设置显示到屏幕
                     mediaPlayer.setDisplay(mSurfaceHolder);
                     mSeekBar.setMax(mediaPlayer.getDuration());
                     mVideoTime.setText(getTime(0) + "/" + getTime(mediaPlayer.getDuration()));
-                    int screenWidth = mSurfaceViewLayout.getWidth();
-                    int screenHeight = screenWidth * mediaPlayer.getVideoHeight() / mediaPlayer.getVideoWidth();
-                    RelativeLayout.LayoutParams layoutParams = new RelativeLayout.LayoutParams(screenWidth,
-                            screenHeight);
-                    layoutParams.topMargin = 480;
+                    ViewGroup.LayoutParams layoutParams = mSurfaceViewLayout.getLayoutParams();
+                    layoutParams.width = mSurfaceViewLayout.getWidth();
+                    layoutParams.height = layoutParams.width * mediaPlayer.getVideoHeight() / mediaPlayer.getVideoWidth();
                     mSurfaceViewLayout.setLayoutParams(layoutParams);
                 }
             }, new MediaPlayer.OnBufferingUpdateListener() {
@@ -367,10 +385,17 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
             }, new MediaPlayer.OnInfoListener() {
                 @Override
                 public boolean onInfo(MediaPlayer mp, int what, int extra) {
-                    if (what == MediaPlayer.MEDIA_INFO_BUFFERING_START) {
-                        mProgressBar.setVisibility(View.VISIBLE);
-                    } else if (what == MediaPlayer.MEDIA_INFO_BUFFERING_END) {
-                        mProgressBar.setVisibility(View.GONE);
+                    switch(what) {
+                        case MediaPlayer.MEDIA_INFO_BUFFERING_START:
+                            mProgressBar.setVisibility(View.VISIBLE);
+                            break;
+
+                        case MediaPlayer.MEDIA_INFO_BUFFERING_END:
+                            mProgressBar.setVisibility(View.GONE);
+                            break;
+
+                        case MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START:
+                            break;
                     }
                     return false;
                 }
@@ -435,10 +460,12 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
     }
 
     @Override
-    public void onPause() {
+        public void onPause() {
         if (mBBCMediaPlayerService != null) {
             if (mBBCMediaPlayerService.getMediaPlayer() != null) {
-                if(mBBCMediaPlayerService.getMediaPlayer().isPlaying()) {
+                if(mIsPreparing && !mIsPrepared) {
+                    mPreparingPause = true;
+                } else if(mBBCMediaPlayerService.getMediaPlayer().isPlaying()) {
                     mPlayPosition = mBBCMediaPlayerService.getCurrentPosition();
                     mBBCMediaPlayerService.getMediaPlayer().pause();
                     mPlayPauseButton.setText("播放");
