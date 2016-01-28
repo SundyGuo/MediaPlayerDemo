@@ -187,4 +187,18 @@ public class BBCMediaPlayerService extends Service{
             mMediaPlayer.setMediaPlayerInterface(iMediaPlayerInterface);
         }
     }
+
+    /**
+     * Add media player Completion listener
+     * @param onCompletionListener
+     */
+    public void addMediaPlayerCompletionListener(SMediaPlayer.OnCompletionListener onCompletionListener) {
+        if (mMediaPlayer == null) {
+            mMediaPlayer = new SMediaPlayer();
+        }
+        if (onCompletionListener != null) {
+            mMediaPlayer.setOnCompletionListener(onCompletionListener);
+
+        }
+    }
 }

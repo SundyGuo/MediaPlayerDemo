@@ -407,6 +407,13 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
                     mIsPausedMediaState = true;
                 }
             });
+            mBBCMediaPlayerService.addMediaPlayerCompletionListener(new SMediaPlayer.OnCompletionListener() {
+                @Override
+                public void onCompletion(MediaPlayer mp) {
+                    mIsPreparing = false;
+                    ((SMediaPlayer)mp).pauseMediaPlayer();
+                }
+            });
             mBBCMediaPlayerService.startPlayMedia(wordPath);
         }
     }
