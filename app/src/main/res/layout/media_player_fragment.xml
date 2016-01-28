@@ -54,33 +54,42 @@
             android:text="BBC2"
             android:gravity="center"/>
 
-        <Button
-            android:id="@+id/play_pause"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="暂停"
-            android:gravity="center"/>
-
     </LinearLayout>
 
     <RelativeLayout
-        android:id="@+id/surface_view_layout"
         android:layout_width="match_parent"
         android:layout_height="200dp"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="160dp">
+        android:layout_marginTop="160dp"
+        android:background="@android:color/black">
 
-        <com.gxl.mediaplayer.KSurfaceView
-            android:id="@+id/surface_view"
+        <RelativeLayout
+            android:id="@+id/surface_view_layout"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"/>
+            android:layout_height="match_parent"
+            android:layout_centerInParent="true">
+
+            <com.gxl.mediaplayer.KSurfaceView
+                android:id="@+id/surface_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"/>
+
+        </RelativeLayout>
+
+        <Button
+            android:id="@+id/play_pause"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:text="Play"
+            android:background="@drawable/bbc_play_button_bg"
+            android:layout_centerInParent="true"/>
 
         <ProgressBar
             android:id="@+id/progressBar"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_centerInParent="true"/>
+            android:layout_centerInParent="true"
+            android:visibility="gone"/>
 
         <RelativeLayout
             android:id="@+id/video_control_layout"

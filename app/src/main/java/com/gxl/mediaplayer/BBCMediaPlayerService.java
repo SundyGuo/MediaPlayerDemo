@@ -26,6 +26,8 @@ public class BBCMediaPlayerService extends Service{
     // Local IBinder
     private final IBinder mBinder = new LocalBinder();
 
+    public static boolean mIsBusy = false;
+
     /**
      * Create Local Binder
      */
@@ -86,6 +88,22 @@ public class BBCMediaPlayerService extends Service{
             mMediaPlayer.release();
             mMediaPlayer = null;
         }
+        try {
+            stopSelf();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Judge whether media is playing
+     * @return
+     */
+    public boolean isPlaying() {
+        if(mMediaPlayer == null) {
+            return  false;
+        }
+        return mMediaPlayer.isPlaying();
     }
 
     /**
@@ -120,7 +138,15 @@ public class BBCMediaPlayerService extends Service{
         }
     }
 
-    // 添加MediaPlayer加载数据及播放视频进度监听
+    /**
+     * Create new media player when play another video
+     */
+    public void createNewMediaPlayer(){
+        if(mMediaPlayer != null) {
+            mMediaPlayer = new SMediaPlayer();
+        }
+
+    }
 
     /**
      * Add some media player listener
@@ -150,16 +176,15 @@ public class BBCMediaPlayerService extends Service{
     }
 
     /**
-     *
-     * @param onSeekCompleteListener
+     * Add media player player interface of KMediaPlayer
+     * @param iMediaPlayerInterface
      */
-    public void addMediaPlayerSeekListener(MediaPlayer.OnSeekCompleteListener onSeekCompleteListener){
+    public void addMediaPlayerPausedListener(SMediaPlayer.IMediaPlayerInterface iMediaPlayerInterface) {
         if (mMediaPlayer == null) {
             mMediaPlayer = new SMediaPlayer();
         }
-        if (onSeekCompleteListener != null) {
-            mMediaPlayer.setOnSeekCompleteListener(onSeekCompleteListener);
-
+        if (iMediaPlayerInterface != null) {
+            mMediaPlayer.setMediaPlayerInterface(iMediaPlayerInterface);
         }
     }
 }
