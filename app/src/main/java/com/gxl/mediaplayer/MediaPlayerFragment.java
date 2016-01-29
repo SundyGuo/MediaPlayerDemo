@@ -21,6 +21,9 @@ import android.widget.RelativeLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
+import java.io.IOException;
+import java.net.URL;
+import java.net.HttpURLConnection;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -46,9 +49,6 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
     private int mVoiceAndVideoState = 2;
 
     private BBCMediaPlayerService mBBCMediaPlayerService;
-
-    // Mark Retry state
-    private boolean mTryAgain = false;
 
     // Play Time Thread control state
     private boolean mUpdatePlayTimeState = true;
@@ -82,6 +82,8 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
 
     // Animator to show and hide video control view
     private ObjectAnimator mVideoAnimator = null;
+
+    private boolean  mTryAgain = false;
 
 
     // View Button
@@ -180,7 +182,13 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
             @Override
             public void onClick(View view) {
                 mTryAgain = false;
-                playMedia(URL + "leng_" + mInputEditText.getText().toString().trim() + ".mp4");
+                final String url = URL + "leng_" + mInputEditText.getText().toString().trim() + ".mp4";
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        checkUrlConnect(url);
+                    }
+                }).start();
             }
         });
         // 设置surfaceHolder
@@ -256,7 +264,6 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
      * @param view
      */
     private void onViewBBCClick(View view) {
-        mTryAgain = false;
         String text = ((Button) view).getText().toString().trim();
         if (text.endsWith("1")) {
             playMedia("http://cdn.iciba.com/news/bbc/video/bbc_lingohack_solar_power_female_commander_hospital_demolished-android.mp4");
@@ -383,16 +390,11 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
             }, new MediaPlayer.OnErrorListener() {
                 @Override
                 public boolean onError(MediaPlayer mp, int what, int extra) {
-                    if (!mTryAgain) {
-                        playMedia(wordPath.replace("leng_", "real_"));
-                        mTryAgain = true;
-                    } else {
-                        setPlayPauseButton(false);
-                        changeProgressBarState(false);
-                        mIsPrepared = false;
-                        mIsPreparing = false;
-                        SToast.show(mContext,"what is " + what + " *** extra is " + extra);
-                    }
+                    setPlayPauseButton(false);
+                    changeProgressBarState(false);
+                    mIsPrepared = false;
+                    mIsPreparing = false;
+                    SToast.show(mContext,"what is " + what + " *** extra is " + extra);
                     return false;
                 }
             });
@@ -635,6 +637,45 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
                 mPlayPauseButton.setText("Play");
                 mPlayPauseButton.setVisibility(View.VISIBLE);
             }
+        }
+    }
+
+    /**
+     * Check url is connect
+     * @return
+     */
+    private void checkUrlConnect(final String urlString){
+        int code = -1;
+        try {
+            URL url = new URL(urlString);
+            HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
+            code = httpURLConnection.getResponseCode();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        if(code == 200) {
+            mHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    playMedia(urlString);
+                }
+            });
+        } else if (!mTryAgain) {
+            mTryAgain = true;
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    String newUrl = urlString.replace("leng_", "real_");
+                    checkUrlConnect(newUrl);
+                }
+            }).start();
+        } else {
+            mHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    SToast.show(mContext,"The word video is not exist");
+                }
+            });
         }
     }
 }
