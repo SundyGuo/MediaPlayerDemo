@@ -525,6 +525,9 @@ public class MediaPlayerFragment extends BaseFragment implements ServiceConnecti
     Runnable runnable = new Runnable() {
         @Override
         public void run() {
+            if(mPlayPauseButton.getVisibility() == View.VISIBLE && mIsPlaying) {
+                mPlayPauseButton.setVisibility(View.GONE);
+            }
             changeVideoControlState(false);
         }
     };
